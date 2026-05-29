@@ -1,75 +1,94 @@
-# DuckDuckGo + Groq Search (proot-browser-search)
+# 🌐 Hermes Proot-Distro Web Search
 
-This repository contains a **reliable web search tool** designed for Android/Termux environments where the native `ddgs` library crashes due to Rust-NDK limitations.
+A high-reliability web search engine specifically engineered for **Android/Termux** environments. 
 
-## Overview
+## ⚠️ Why this exists?
+Native Python libraries like `duckduckgo_search` (`ddgs`) often crash on Android due to **Rust-NDK panics** (specifically issues with the `jiter` library and memory allocation). 
 
-The `hermes_web_search.py` script enables reliable DuckDuckGo searches **inside an Ubuntu proot-distro environment**, bypassing Rust-NDK panics entirely. Returns clean JSON for easy parsing by Hermes Agent or any tool.
+This tool solves this by executing the search logic inside a **proot-distro Ubuntu** container, where the native binaries are stable, while providing a clean JSON interface for the Hermes Agent on the Termux host.
 
-### Features
+## 🚀 Features
 
-- **Proot-isolated**: Runs inside Ubuntu proot-distro to avoid Android Rust-NDK crashes
-- **Two interfaces**: Standalone Python script + shell wrapper
-- **Smart caching**: JSON cache at `~/.hermes/.ddg_cache.json` with configurable TTL (default 5 min)
-- **Optional Groq summarization**: Pass `--summarize` for AI-powered result summary
-- **JSON output**: Easy to pipe into other tools, Hermes, or scripts
+- **🛡️ Rust-Panic Proof**: Runs inside Ubuntu proot-distro to ensure 100% stability on ARM64 Android.
+- **⚡ High Performance**: Uses `DDGS().text()` for rapid, lightweight search retrieval.
+- **💾 Smart Caching**: Implements a local JSON cache at `~/.hermes/.ddg_cache.json` with a configurable TTL (default 5m) to avoid rate limits and speed up repeated queries.
+- **🤖 AI Summarization**: Integrated with Groq LLMs to condense multiple search results into a single, concise answer via the `--summarize` flag.
+- **🛠️ Dual Interface**:
+  - **Python Script**: For programmatic use and Hermes Agent integration.
+  - **Shell Wrapper**: For quick CLI usage in Termux.
 
-## Installation
+## 📦 Installation
 
-### Prerequisites
-- `proot-distro` installed with Ubuntu
-- Python 3 + `pip install ddgs` inside the proot Ubuntu
-
-### Quick Start
-
+### 1. Setup Proot Ubuntu
 ```bash
-# Search with 3 results
-python3 hermes_web_search.py "your query" --max 3
-
-# Search with Groq summarization
-python3 hermes_web_search.py "your query" --max 5 --summarize
-
-# Or use the shell wrapper
-./web_search.sh "your query" 3
+pkg install proot-distro
+proot-distro install ubuntu
+proot-distro login ubuntu -- bash -c "apt update && apt install python3 python3-pip -y && pip install ddgs"
 ```
 
-### Sample output
+### 2. Deploy Tool
+Clone this repo to your Termux home:
+```bash
+git clone https://github.com/tmrisdaone/Hermes_proot-distro_scrapper.git ~/workspace/Hermes_proot-distro_scrapper
+chmod +x ~/workspace/Hermes_proot-distro_scrapper/*.py
+chmod +x ~/workspace/Hermes_proot-distro_scrapper/*.sh
+```
 
+## 🛠️ Usage
+
+### Option A: Direct Python (Recommended for Agents)
+```bash
+python3 hermes_web_search.py "What is the latest Llama model?" --max 5 --summarize
+```
+
+### Option B: Shell Wrapper (Recommended for Humans)
+```bash
+./web_search.sh "Latest AI news" 3
+```
+
+### Command Line Arguments
+| Flag | Description | Default |
+|------|-------------|----------|
+| `query` | The search string | Required |
+| `--max N` | Number of results to fetch | `5` |
+| `--summarize` | Uses Groq to summarize the body of the results | Disabled |
+
+## ⚙️ Configuration (Environment Variables)
+
+These can be added to your `~/.bashrc` or `~/.hermes/.env`:
+
+| Variable | Description | Default |
+|-----------|-------------|----------|
+| `GROQ_API_KEY` | API key for Groq summarization | `None` |
+| `GROQ_MODEL` | The LLM used for summarization | `llama-3.1-8b-instant` |
+| `DDG_CACHE_TTL` | Cache expiration in seconds | `300` |
+| `DDG_MAX_RESULTS`| Default number of results per search | `5` |
+
+## 🤖 Hermes Agent Integration
+
+To use this as a custom script in your `config.yaml`:
+
+```yaml
+scripts:
+  proot-search:
+    path: /data/data/com.termux/files/home/workspace/Hermes_proot-distro_scrapper/hermes_web_search.py
+    description: "Reliable DDG search via proot-distro"
+    args: ["query"]
+```
+
+**Invoke via:** `hermes script run proot-search -- "query here"`
+
+## 📊 Output Format
+The tool returns a structured JSON object:
 ```json
 {
-  "query": "what is deepseek",
-  "timestamp": "2026-05-29 21:49:29",
-  "cached": false,
+  "query": "...",
+  "timestamp": "...",
+  "cached": true/false,
   "web": [
-    {
-      "title": "DeepSeek - Wikipedia",
-      "href": "https://en.wikipedia.org/wiki/DeepSeek",
-      "body": "Based in Hangzhou, Zhejiang, ..."
-    }
+    { "title": "...", "href": "...", "body": "..." }
   ],
+  "summary": "...", // Only if --summarize is used
   "error": null
 }
 ```
-
-## Configuration (env vars)
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `GROQ_API_KEY` | — | Required for `--summarize` |
-| `GROQ_MODEL` | `llama-3.1-8b-instant` | Groq model for summarization |
-| `DDG_CACHE_TTL` | `300` | Cache TTL in seconds |
-| `DDG_MAX_RESULTS` | `5` | Default result count |
-
-## Hermes Agent Integration
-
-The script is designed to be called from Hermes Agent via `terminal` tool:
-
-```bash
-python3 /path/to/hermes_web_search.py "query" --max 5
-```
-
-It's also registered as the `proot-browser-search` skill in Hermes, so you can invoke it with: `hermes script run proot-search -- "query"`
-
-## Comparison with ddg_groq_search.py
-
-The old `ddg_groq_search.py` used the deprecated `ddgs.results()` API which is no longer available in newer `ddgs` library versions. The new `hermes_web_search.py` uses `DDGS().text()` which is the current API.
