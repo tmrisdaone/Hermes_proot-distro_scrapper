@@ -11,6 +11,7 @@ This tool solves this by executing the search logic inside a **proot-distro Ubun
 
 - **🛡️ Rust-Panic Proof**: Runs inside Ubuntu proot-distro to ensure 100% stability on ARM64 Android.
 - **⚡ High Performance**: Uses `DDGS().text()` for rapid, lightweight search retrieval.
+- **🛠️ Built-in Page Reader (Jina AI)**: Every result includes full article content fetched via [Jina AI Reader](https://r.jina.ai/) — so you get the actual article text, not just snippets. No API key required.
 - **💾 Smart Caching**: Implements a local JSON cache at `~/.hermes/.ddg_cache.json` with a configurable TTL (default 5m) to avoid rate limits and speed up repeated queries.
 - **🤖 AI Summarization**: Integrated with Groq LLMs to condense multiple search results into a single, concise answer via the `--summarize` flag.
 - **🛠️ Dual Interface**:
@@ -82,13 +83,18 @@ scripts:
 The tool returns a structured JSON object:
 ```json
 {
-  "query": "...",
-  "timestamp": "...",
-  "cached": true/false,
-  "web": [
-    { "title": "...", "href": "...", "body": "..." }
-  ],
-  "summary": "...", // Only if --summarize is used
-  "error": null
+ "query": "...",
+ "timestamp": "...",
+ "cached": true/false,
+ "web": [
+  {
+   "title": "...",
+   "url": "...",
+   "snippet": "...",
+   "content": "..."   // Full article text fetched via Jina AI Reader
+  }
+ ],
+ "summary": "...", // Only if --summarize is used
+ "error": null
 }
 ```
