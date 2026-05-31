@@ -95,8 +95,8 @@ def _read_page(url: str) -> str:
         return f"[Error reading page: {e}]"
 
 
-def search(query: str, max_results: int = 5, read: bool = False) -> dict:
-    """Search DuckDuckGo. If read=True, also fetch full page content for each result."""
+def search(query: str, max_results: int = 5) -> dict:
+    """Search DuckDuckGo and auto-fetch full page content via Jina AI."""
     cache_key = f"search:{query.lower()}:{max_results}"
     cached = _cache_get(cache_key)
     if cached is not None:
@@ -114,8 +114,7 @@ def search(query: str, max_results: int = 5, read: bool = False) -> dict:
 
     for r in results:
         entry = {"title": r["title"], "url": r["href"], "snippet": r["body"]}
-        if read:
-            entry["content"] = _read_page(r["href"])
+        entry["content"] = _read_page(r["href"])
         out["web"].append(entry)
 
     return out
@@ -126,11 +125,10 @@ def main():
     parser = argparse.ArgumentParser(description="Hermes web search tool (proot-distro + Jina AI)")
     parser.add_argument("query", help="Search query")
     parser.add_argument("--max", type=int, default=5, help="Max results")
-    parser.add_argument("--read", action="store_true", help="Fetch full page content via Jina AI")
     parser.add_argument("--summarize", action="store_true", help="Summarize with Groq (requires GROQ_API_KEY)")
     args = parser.parse_args()
 
-    result = search(args.query, args.max, read=args.read)
+    result = search(args.query, args.max)
 
     if args.summarize:
         api_key = os.environ.get("GROQ_API_KEY", "")
