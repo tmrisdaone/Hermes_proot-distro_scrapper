@@ -1,100 +1,60 @@
-# 🌐 Hermes Proot-Distro Web Search
+# Hermes_proot-distro_scrapper
 
-A high-reliability web search engine specifically engineered for **Android/Termux** environments. 
+A Python utility that combines DuckDuckGo search results with optional Groq LLM
+summarization. Runs the search backend inside `proot-distro` Ubuntu so the
+`ddgs` library (which is hard to install in bare Termux) works on Android.
 
-## ⚠️ Why this exists?
-Native Python libraries like `duckduckgo_search` (`ddgs`) often crash on Android due to **Rust-NDK panics** (specifically issues with the `jiter` library and memory allocation). 
+## Usage
 
-This tool solves this by executing the search logic inside a **proot-distro Ubuntu** container, where the native binaries are stable, while providing a clean JSON interface for the Hermes Agent on the Termux host.
-
-## 🚀 Features
-
-- **🛡️ Rust-Panic Proof**: Runs inside Ubuntu proot-distro to ensure 100% stability on ARM64 Android.
-- **⚡ High Performance**: Uses `DDGS().text()` for rapid, lightweight search retrieval.
-- **🛠️ Built-in Page Reader (Jina AI)**: Every result includes full article content fetched via [Jina AI Reader](https://r.jina.ai/) — so you get the actual article text, not just snippets. No API key required.
-- **💾 Smart Caching**: Implements a local JSON cache at `~/.hermes/.ddg_cache.json` with a configurable TTL (default 5m) to avoid rate limits and speed up repeated queries.
-- **🤖 AI Summarization**: Integrated with Groq LLMs to condense multiple search results into a single, concise answer via the `--summarize` flag.
-- **🛠️ Dual Interface**:
-  - **Python Script**: For programmatic use and Hermes Agent integration.
-  - **Shell Wrapper**: For quick CLI usage in Termux.
-
-## 📦 Installation
-
-### 1. Setup Proot Ubuntu
 ```bash
-pkg install proot-distro
-proot-distro install ubuntu
-proot-distro login ubuntu -- bash -c "apt update && apt install python3 python3-pip -y && pip install ddgs"
+# Basic search (no API key needed)
+./web_search.sh "your query here"
+
+# With LLM summarization (requires GROQ_API_KEY in your env)
+export GROQ_API_KEY=sk-...
+./web_search.sh "your query here" 5
 ```
 
-### 2. Deploy Tool
-Clone this repo to your Termux home:
-```bash
-git clone https://github.com/tmrisdaone/Hermes_proot-distro_scrapper.git ~/workspace/Hermes_proot-distro_scrapper
-chmod +x ~/workspace/Hermes_proot-distro_scrapper/*.py
-chmod +x ~/workspace/Hermes_proot-distro_scrapper/*.sh
+`web_search.sh` wraps `hermes_web_search.py` with `~/.hermes/proot` paths
+already configured for this device.
+
+## Requirements
+
+- Python 3.10+ (uses PEP 604 `int | None` syntax)
+- `proot-distro` with Ubuntu installed (`proot-distro install ubuntu`)
+- Inside the proot Ubuntu, the `ddgs` package:
+  ```bash
+  proot-distro login ubuntu -- apt install python3-pip
+  proot-distro login ubuntu -- pip3 install ddgs
+  ```
+
+## Configuration
+
+`GROQ_API_KEY` is read from your environment and **passed to the proot
+container as an environment variable** (not interpolated into a `python -c`
+argument, so it does not appear in `ps aux`). When the key is missing, the
+`--summarize` flag is a no-op and `summary_error: "GROQ_API_KEY not set"`
+is returned in the JSON output.
+
+## API
+
+```python
+from hermes_web_search import search
+
+result = search("my query", max_results=5)
+# {
+#   "query": "my query",
+#   "timestamp": "2026-06-19 12:34:56",
+#   "cached": false,
+#   "web": [
+#     {"title": ..., "url": ..., "snippet": ..., "content": "<full page via Jina>"}
+#   ]
+# }
 ```
 
-## 🛠️ Usage
+`content` is the full page text fetched via [Jina AI Reader](https://r.jina.ai/),
+capped at 8000 characters. Cached on disk for 5 minutes.
 
-### Option A: Direct Python (Recommended for Agents)
-```bash
-python3 hermes_web_search.py "What is the latest Llama model?" --max 5 --summarize
-```
+## License
 
-### Option B: Shell Wrapper (Recommended for Humans)
-```bash
-./web_search.sh "Latest AI news" 3
-```
-
-### Command Line Arguments
-| Flag | Description | Default |
-|------|-------------|----------|
-| `query` | The search string | Required |
-| `--max N` | Number of results to fetch | `5` |
-| `--summarize` | Uses Groq to summarize the body of the results | Disabled |
-
-## ⚙️ Configuration (Environment Variables)
-
-These can be added to your `~/.bashrc` or `~/.hermes/.env`:
-
-| Variable | Description | Default |
-|-----------|-------------|----------|
-| `GROQ_API_KEY` | API key for Groq summarization | `None` |
-| `GROQ_MODEL` | The LLM used for summarization | `llama-3.1-8b-instant` |
-| `DDG_CACHE_TTL` | Cache expiration in seconds | `300` |
-| `DDG_MAX_RESULTS`| Default number of results per search | `5` |
-
-## 🤖 Hermes Agent Integration
-
-To use this as a custom script in your `config.yaml`:
-
-```yaml
-scripts:
-  proot-search:
-    path: /data/data/com.termux/files/home/workspace/Hermes_proot-distro_scrapper/hermes_web_search.py
-    description: "Reliable DDG search via proot-distro"
-    args: ["query"]
-```
-
-**Invoke via:** `hermes script run proot-search -- "query here"`
-
-## 📊 Output Format
-The tool returns a structured JSON object:
-```json
-{
- "query": "...",
- "timestamp": "...",
- "cached": true/false,
- "web": [
-  {
-   "title": "...",
-   "url": "...",
-   "snippet": "...",
-   "content": "..."   // Full article text fetched via Jina AI Reader
-  }
- ],
- "summary": "...", // Only if --summarize is used
- "error": null
-}
-```
+MIT

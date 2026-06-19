@@ -14,11 +14,18 @@ PROOT = "proot-distro"
 UBUNTU_CMD = ["login", "ubuntu", "--", "bash", "-c"]
 
 
-def _run_proot(python_code: str) -> tuple[str, int]:
-    """Run python_code inside proot-distro ubuntu. Returns (output, exit_code)."""
+def _run_proot(python_code: str, env: dict | None = None) -> tuple[str, int]:
+    """Run python_code inside proot-distro ubuntu. Returns (output, exit_code).
+
+    Security note: `python_code` is passed as a single argv item. Any string
+    interpolation into it (e.g. secrets, file paths) becomes visible in
+    `ps aux`. Use `env` to pass sensitive values via env vars instead.
+    """
     cmd = [PROOT] + UBUNTU_CMD + [f'python3 -c {repr(python_code)}']
+    full_env = {**os.environ, **(env or {})}
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=20)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=45,
+                                env=full_env)
         return result.stdout.strip(), result.returncode
     except subprocess.TimeoutExpired:
         return "", 124
@@ -148,9 +155,12 @@ def main():
 
 
 def _groq_summarize(api_key: str, prompt: str) -> str:
+    # Pass the API key via env var, NOT as a literal interpolated into
+    # the python source — that would expose the key in `ps aux` on the
+    # proot login. The receiving script reads GROQ_API_KEY from os.environ.
     code = (
         "import urllib.request, json, os\n"
-        f"key = {repr(api_key)}\n"
+        "key = os.environ['GROQ_API_KEY']\n"
         "body = json.dumps({\n"
         '    "model": "llama-3.3-70b-versatile",\n'
         '    "messages": [{"role": "user", "content": ' + repr(prompt) + '}],\n'
@@ -167,7 +177,7 @@ def _groq_summarize(api_key: str, prompt: str) -> str:
         "except Exception as e:\n"
         "    print(f'[Groq error: {e}]')\n"
     )
-    stdout, rc = _run_proot(code)
+    stdout, rc = _run_proot(code, env={"GROQ_API_KEY": api_key})
     return stdout.strip() if rc == 0 else f"[Groq failed: rc={rc}]"
 
 
